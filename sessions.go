@@ -9,7 +9,7 @@ import (
 type session struct {
 	uuid string
 	expires time.Time
-	v interface{}
+	v * interface{}
 }
 
 type Store struct {
@@ -26,7 +26,7 @@ func NewStore(lifetime time.Duration) * Store {
 	}
 }
 
-func(store * Store) NewSession(w http.ResponseWriter, v interface{}) {
+func(store * Store) NewSession(w http.ResponseWriter, v * interface{}) {
 	s := &session{
 		uuid: 		uuid.New().String(),
 		expires: 	time.Now().Add(store.lifetime),
@@ -45,13 +45,13 @@ func(store * Store) NewSession(w http.ResponseWriter, v interface{}) {
 	http.SetCookie(w, &cookie)
 }
 
-func(store * Store) Get(w http.ResponseWriter, req * http.Request) interface{} {
+func(store * Store) Get(w http.ResponseWriter, req * http.Request) * interface{} {
 	cookie, err := req.Cookie("session")
 	if err != nil || cookie.Expires.Unix() > time.Now().Unix() {
 		return nil
 	}
 
-	var v interface{} = nil
+	var v * interface{} = nil
 	store.lock <- 0
 	for i, s := range store.sessions {
 		if s.uuid == cookie.Value {

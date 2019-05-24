@@ -6,10 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type SessionCloser interface {
+	Close()
+}
+
 type session struct {
 	uuid string
 	expires time.Time
-	v * interface{}
+	closer * SessionCloser
 }
 
 type Store struct {
@@ -26,11 +30,11 @@ func NewStore(lifetime time.Duration) * Store {
 	}
 }
 
-func(store * Store) NewSession(w http.ResponseWriter, v * interface{}) {
+func(store * Store) NewSession(w http.ResponseWriter, closer * SessionCloser) {
 	s := &session{
 		uuid: 		uuid.New().String(),
 		expires: 	time.Now().Add(store.lifetime),
-		v: 			v,
+		closer: 	closer,
 	}
 
 	store.lock <- 0
@@ -45,13 +49,24 @@ func(store * Store) NewSession(w http.ResponseWriter, v * interface{}) {
 	http.SetCookie(w, &cookie)
 }
 
-func(store * Store) Get(w http.ResponseWriter, req * http.Request) * interface{} {
+func(store * Store) EndSession(closer * SessionCloser) {
+	store.lock <- 0
+	for i, s := range store.sessions {
+		if s.closer == closer {
+			(*closer).Close()
+			store.sessions = append(store.sessions[:i], store.sessions[i+1:]...)
+		}
+	}
+	<- store.lock
+}
+
+func(store * Store) Get(w http.ResponseWriter, req * http.Request) * SessionCloser {
 	cookie, err := req.Cookie("session")
 	if err != nil || cookie.Expires.Unix() > time.Now().Unix() {
 		return nil
 	}
 
-	var v * interface{} = nil
+	var closer * SessionCloser = nil
 	store.lock <- 0
 	for i, s := range store.sessions {
 		if s.uuid == cookie.Value {
@@ -59,7 +74,7 @@ func(store * Store) Get(w http.ResponseWriter, req * http.Request) * interface{}
 				s.expires = time.Now().Add(store.lifetime)
 				cookie.Expires = s.expires
 				http.SetCookie(w, cookie)
-				v = s.v
+				closer = s.closer
 				break
 			} else {
 				store.sessions = append(store.sessions[:i], store.sessions[i+1:]...)
@@ -67,15 +82,21 @@ func(store * Store) Get(w http.ResponseWriter, req * http.Request) * interface{}
 		}
 	}
 	<- store.lock
-	return v
+	return closer
 }
 
 func(store * Store) Clean() {
 	store.lock <- 0
-	for i, s := range store.sessions {
-		if s.expires.Unix() < time.Now().Unix() {
+	for i := 0; i < len(store.sessions); i++ {
+		if store.sessions[i].expires.Unix() < time.Now().Unix() {
+			(*store.sessions[i].closer).Close()
 			store.sessions = append(store.sessions[:i], store.sessions[i+1:]...)
+			i--
 		}
 	}
 	<- store.lock
+}
+
+func(store * Store) SessionCount() int {
+	return len(store.sessions)
 }

@@ -89,12 +89,10 @@ func(store * MemStore) SetCleanInterval(i time.Duration) {
 func(store * MemStore) search(num uint32) * Session {
 	a := store.a
 	for p := len(a) / 2; len(a) > 0; p = len(a) / 2 {
-		if len(a) == 1 && a[p].num != num {
-			break
-		} else if a[p].num > num {
+		if a[p].num > num {
 			a = a[:p]
 		} else if a[p].num < num {
-			a = a[p:]
+			a = a[p + 1:]
 		} else {
 			return a[p]
 		}

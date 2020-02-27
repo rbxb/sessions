@@ -1,9 +1,9 @@
 package sessions
 
 import (
-	"encoding/binary"
-	"encoding/base64"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/binary"
 	"errors"
 )
 
@@ -15,7 +15,7 @@ func newCookieAuth(b []byte) string {
 }
 
 func encodeCookie(num uint32, b []byte) string {
-	binary.BigEndian.PutUint32(b,num)
+	binary.BigEndian.PutUint32(b, num)
 	return base64.StdEncoding.EncodeToString(b)
 }
 

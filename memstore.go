@@ -113,7 +113,10 @@ func (store *MemStore) clean(force bool) {
 		for i, s := range store.a {
 			if s.expires.Unix() < now.Unix() {
 				move++
-				go s.OnEndFunc(s)
+				onEnd := s.OnEndFunc
+				if onEnd != nil {
+					go onEnd(s)
+				}
 			} else if move > 0 {
 				store.a[i-move] = s
 			}

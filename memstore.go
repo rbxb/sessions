@@ -2,11 +2,12 @@ package sessions
 
 import (
 	"net/http"
+	"sync"
 	"time"
 )
 
 type MemStore struct {
-	lock          chan byte
+	sync.Mutex
 	a             []*Session
 	cleaninterval time.Duration
 	lastclean     time.Time
@@ -14,7 +15,6 @@ type MemStore struct {
 
 func NewMemStore() *MemStore {
 	return &MemStore{
-		lock:          make(chan byte, 1),
 		a:             make([]*Session, 0),
 		cleaninterval: time.Second * 4,
 		lastclean:     time.Now(),
@@ -22,7 +22,7 @@ func NewMemStore() *MemStore {
 }
 
 func (store *MemStore) New(w http.ResponseWriter, lifetime time.Duration) *Session {
-	store.lock <- 0
+	store.Lock()
 	store.clean(false)
 	var num uint32 = 0
 	if len(store.a) > 0 {
@@ -38,7 +38,7 @@ func (store *MemStore) New(w http.ResponseWriter, lifetime time.Duration) *Sessi
 		expires:   time.Now().Add(lifetime),
 	}
 	store.a = append(store.a, s)
-	<-store.lock
+	store.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name:    "session",
 		Value:   encodeCookie(num, b),
@@ -57,7 +57,7 @@ func (store *MemStore) Get(w http.ResponseWriter, req *http.Request) *Session {
 	if err != nil {
 		return nil
 	}
-	store.lock <- 0
+	store.Lock()
 	store.clean(false)
 	s := store.search(num)
 	if s != nil && s.expires.Unix() > now.Unix() && auth == s.auth {
@@ -65,15 +65,15 @@ func (store *MemStore) Get(w http.ResponseWriter, req *http.Request) *Session {
 		cookie.Expires = s.expires
 		http.SetCookie(w, cookie)
 	}
-	<-store.lock
+	store.Unlock()
 	return s
 }
 
 func (store *MemStore) End(s *Session) {
 	s.expires = time.Now()
-	store.lock <- 0
+	store.Lock()
 	store.clean(false)
-	<-store.lock
+	store.Unlock()
 }
 
 func (store *MemStore) Has(s *Session) bool {
@@ -81,25 +81,25 @@ func (store *MemStore) Has(s *Session) bool {
 }
 
 func (store *MemStore) Iterate(f func(*Session) bool) {
-	store.lock <- 0
+	store.Lock()
 	for _, s := range store.a {
 		if !f(s) {
 			break
 		}
 	}
-	<-store.lock
+	store.Unlock()
 }
 
 func (store *MemStore) Clean() {
-	store.lock <- 0
+	store.Lock()
 	store.clean(true)
-	<-store.lock
+	store.Unlock()
 }
 
 func (store *MemStore) SetCleanInterval(i time.Duration) {
-	store.lock <- 0
+	store.Lock()
 	store.cleaninterval = i
-	<-store.lock
+	store.Unlock()
 }
 
 func (store *MemStore) search(num uint32) *Session {

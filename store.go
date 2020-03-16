@@ -10,4 +10,5 @@ type Store interface {
 	Get(http.ResponseWriter, *http.Request) *Session
 	End(*Session)
 	Has(*Session) bool
+	Iterate(func(*Session) bool)
 }

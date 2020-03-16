@@ -80,6 +80,16 @@ func (store *MemStore) Has(s *Session) bool {
 	return store.search(s.num) == s
 }
 
+func (store *MemStore) Iterate(f func(*Session) bool) {
+	store.lock <- 0
+	for _, s := range store.a {
+		if !f(s) {
+			break
+		}
+	}
+	<-store.lock
+}
+
 func (store *MemStore) Clean() {
 	store.lock <- 0
 	store.clean(true)
